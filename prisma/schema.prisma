@@ -1,0 +1,407 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  phone         String    @unique
+  password      String
+  name          String
+  role          UserRole
+  isActive      Boolean   @default(true)
+  fcmToken      String?   // For push notifications
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Role-specific relations
+  driver        Driver?
+  parent        Parent?
+  teen          Teen?
+  admin         Admin?
+}
+
+enum UserRole {
+  DRIVER
+  PARENT
+  TEEN
+  ADMIN
+}
+
+// City Management
+model City {
+  id          String    @id @default(uuid())
+  name        String
+  state       String
+  country     String
+  isActive    Boolean   @default(true)
+  coordinates Json      // Polygon/MultiPolygon for city boundaries
+  timezone    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  settings    CitySettings?
+  locations   Location[]
+}
+
+model CitySettings {
+  id                String    @id @default(uuid())
+  cityId           String    @unique
+  city             City      @relation(fields: [cityId], references: [id])
+  basePrice        Float
+  pricePerKm       Float
+  rushHourMultiplier Float
+  peakHours        Json      // Array of time ranges
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Vehicle type specific settings
+  vehicleSettings  VehicleTypeSetting[]
+}
+
+// Vehicle Management
+model VehicleType {
+  id          String    @id @default(uuid())
+  name        String    // e.g., "Mini Van", "School Bus"
+  capacity    Int       // Number of seats
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  vehicles    Vehicle[]
+  settings    VehicleTypeSetting[]
+}
+
+model VehicleTypeSetting {
+  id            String       @id @default(uuid())
+  citySettingId String
+  citySetting   CitySettings @relation(fields: [citySettingId], references: [id])
+  vehicleTypeId String
+  vehicleType   VehicleType  @relation(fields: [vehicleTypeId], references: [id])
+  maxStops      Int
+  maxRadius     Float
+  maxDistance   Float
+  basePrice     Float?
+  pricePerKm    Float?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([citySettingId, vehicleTypeId])
+}
+
+model Vehicle {
+  id            String      @id @default(uuid())
+  registrationNo String     @unique
+  vehicleTypeId String
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
+  manufacturer  String
+  model         String
+  year          Int
+  color         String
+  isActive      Boolean     @default(true)
+  documents     Json
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  driverId     String?
+  driver       Driver?     @relation(fields: [driverId], references: [id])
+  devices      Device[]
+  trips        Trip[]
+}
+
+// Device Management
+model Device {
+  id            String       @id @default(uuid())
+  serialNumber  String       @unique
+  type          DeviceType
+  vendor        String
+  model         String
+  status        DeviceStatus @default(INACTIVE)
+  lastPing      DateTime?
+  metadata      Json?
+
+  // Vendor API specific fields
+  vendorDeviceId String?    @unique
+  organisationId String
+  apiKey        String?
+
+  // Relations
+  vehicleId     String?
+  vehicle       Vehicle?    @relation(fields: [vehicleId], references: [id])
+  deviceLogs    DeviceLog[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+enum DeviceType {
+  GPS_TRACKER
+  CAMERA
+  PANIC_BUTTON
+  TEMPERATURE_SENSOR
+  FUEL_SENSOR
+  RFID_READER
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  MALFUNCTION
+}
+
+model DeviceLog {
+  id          String      @id @default(uuid())
+  deviceId    String
+  device      Device      @relation(fields: [deviceId], references: [id])
+  status      DeviceStatus
+  event       String
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+}
+
+// Location Management
+model Location {
+  id          String    @id @default(uuid())
+  name        String
+  address     String
+  cityId      String
+  city        City      @relation(fields: [cityId], references: [id])
+  latitude    Float
+  longitude   Float
+  type        LocationType
+  category    LocationCategory
+  isVerified  Boolean   @default(false)
+  popularity  Int       @default(0)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  routeStops  RouteStopLocation[]
+}
+
+enum LocationType {
+  SCHOOL
+  RESIDENTIAL
+  COMMERCIAL
+  LANDMARK
+  OTHER
+}
+
+enum LocationCategory {
+  PICKUP_POINT
+  DROP_POINT
+  BOTH
+}
+
+// Driver Management
+model Driver {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  licenseNumber   String    @unique
+  aadharNumber    String    @unique
+  verificationStatus VerificationStatus?
+  rating          Float     @default(0)
+  isAvailable     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  vehicles        Vehicle[]
+  routes          Route[]
+  trips           Trip[]
+}
+
+model VerificationStatus {
+  id                    String    @id @default(uuid())
+  driverId             String    @unique
+  driver               Driver    @relation(fields: [driverId], references: [id])
+  aadharVerified        Boolean   @default(false)
+  licenseVerified       Boolean   @default(false)
+  policeVerified        Boolean   @default(false)
+  backgroundCheckComplete Boolean  @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+// Parent and Teen Management
+model Parent {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  children    Teen[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  payments    Payment[]
+}
+
+model Teen {
+  id          String    @id @default(uuid())
+  userId      String?   @unique
+  user        User?     @relation(fields: [userId], references: [id])
+  parentId    String
+  parent      Parent    @relation(fields: [parentId], references: [id])
+  name        String
+  age         Int
+  school      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  rides       TeenRide[]
+}
+
+// Route and Trip Management
+model Route {
+  id            String    @id @default(uuid())
+  driverId      String
+  driver        Driver    @relation(fields: [driverId], references: [id])
+  name          String
+  description   String?
+  frequency     RouteFrequency
+  daysOfWeek    Int[]
+  startDate     DateTime
+  endDate       DateTime?
+  isRecurring   Boolean   @default(false)
+  status        RouteStatus @default(PENDING_APPROVAL)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  stops         RouteStopLocation[]
+  trips         Trip[]
+}
+
+enum RouteFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum RouteStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  INACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model RouteStopLocation {
+  id            String    @id @default(uuid())
+  routeId       String
+  route         Route     @relation(fields: [routeId], references: [id])
+  locationId    String
+  location      Location  @relation(fields: [locationId], references: [id])
+  sequence      Int
+  scheduledTime DateTime
+  type          StopType
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([routeId, sequence])
+}
+
+enum StopType {
+  PICKUP
+  DROP
+}
+
+model Trip {
+  id            String    @id @default(uuid())
+  routeId       String
+  route         Route     @relation(fields: [routeId], references: [id])
+  driverId      String
+  driver        Driver    @relation(fields: [driverId], references: [id])
+  vehicleId     String
+  vehicle       Vehicle   @relation(fields: [vehicleId], references: [id])
+  status        TripStatus @default(NOT_STARTED)
+  startTime     DateTime?
+  endTime       DateTime?
+  currentLocation Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  teenRides     TeenRide[]
+}
+
+model TeenRide {
+  id            String    @id @default(uuid())
+  tripId        String
+  trip          Trip      @relation(fields: [tripId], references: [id])
+  teenId        String
+  teen          Teen      @relation(fields: [teenId], references: [id])
+  status        RideStatus @default(SCHEDULED)
+  pickupTime    DateTime?
+  dropTime      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum TripStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RideStatus {
+  SCHEDULED
+  PICKED_UP
+  DROPPED_OFF
+  CANCELLED
+}
+
+// Payment Management
+model Payment {
+  id            String    @id @default(uuid())
+  parentId      String
+  parent        Parent    @relation(fields: [parentId], references: [id])
+  amount        Float
+  currency      String    @default("INR")
+  status        PaymentStatus
+  type          PaymentType
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  WALLET_TOPUP
+  RIDE_PAYMENT
+  SUBSCRIPTION
+  REFUND
+}
+
+// Admin Management
+model Admin {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  permissions   Json      // Array of permission strings
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+} 
