@@ -5,6 +5,7 @@ var UserRole;
 (function (UserRole) {
     UserRole["PARENT"] = "PARENT";
     UserRole["DRIVER"] = "DRIVER";
+    UserRole["TEEN"] = "TEEN";
     UserRole["ADMIN"] = "ADMIN";
 })(UserRole || (exports.UserRole = UserRole = {}));
 var DeviceType;

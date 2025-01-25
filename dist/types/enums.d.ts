@@ -1,6 +1,7 @@
 export declare enum UserRole {
     PARENT = "PARENT",
     DRIVER = "DRIVER",
+    TEEN = "TEEN",
     ADMIN = "ADMIN"
 }
 export declare enum DeviceType {
