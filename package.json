@@ -10,14 +10,18 @@
     "prepare": "npm run clean && npm run build"
   },
   "dependencies": {
-    "@prisma/client": "^5.0.0"
+    "@prisma/client": "^5.0.0",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/node": "^18.0.0"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
   },
   "files": [
     "dist",
     "prisma"
   ]
-} 
+}
