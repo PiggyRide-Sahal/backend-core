@@ -1,30 +1,23 @@
 {
-  "name": "@piggyride/backend-core",
+  "name": "@backend-app/backend-core",
   "version": "1.0.0",
-  "private": true,
+  "description": "Shared types and utilities for backend services",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "jest",
-    "lint": "eslint src --ext .ts",
-    "clean": "rimraf dist"
+    "clean": "rm -rf dist",
+    "prepare": "npm run clean && npm run build"
   },
   "dependencies": {
-    "@prisma/client": "^5.4.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-validator": "^7.0.1"
+    "@prisma/client": "^5.0.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.15",
-    "@types/express": "^4.17.20",
-    "@types/jest": "^29.5.5",
-    "@types/node": "^20.8.7",
-    "jest": "^29.7.0",
-    "prisma": "^5.4.2",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5.2.2"
-  }
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0"
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ]
 } 

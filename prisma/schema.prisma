@@ -64,6 +64,9 @@ model Route {
   isListedPublicly    Boolean        @default(false)
   allowDriverBidding  Boolean        @default(false)
   autoApproveRequests Boolean        @default(false)
+  minOccupancyRatio   Float          @default(0.4)
+  maxOccupancyRatio   Float          @default(1.0)
+  features            RouteFeatures?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   requests            RideRequest[]
@@ -191,20 +194,24 @@ model Teen {
 }
 
 model RideRequest {
-  id           String      @id @default(uuid())
-  parentId     String
-  teenId       String
-  routeId      String
-  pickupStopId String
-  dropStopId   String
-  status       RouteStatus @default(PENDING_PARENT)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  dropStop     RouteStop   @relation("DropStop", fields: [dropStopId], references: [id])
-  parent       Parent      @relation(fields: [parentId], references: [id])
-  pickupStop   RouteStop   @relation("PickupStop", fields: [pickupStopId], references: [id])
-  route        Route       @relation(fields: [routeId], references: [id])
-  teen         Teen        @relation(fields: [teenId], references: [id])
+  id                String      @id @default(uuid())
+  parentId         String
+  teenId           String
+  routeId          String
+  pickupStopId     String
+  dropStopId       String
+  requestType      RequestType  @default(NEW_ROUTE)
+  seatsRequired    Int         @default(1)
+  expectedPickupTime DateTime
+  expectedDropTime   DateTime
+  status           RouteStatus @default(PENDING_PARENT)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  dropStop         RouteStop   @relation("DropStop", fields: [dropStopId], references: [id])
+  parent           Parent      @relation(fields: [parentId], references: [id])
+  pickupStop       RouteStop   @relation("PickupStop", fields: [pickupStopId], references: [id])
+  route            Route       @relation(fields: [routeId], references: [id])
+  teen             Teen        @relation(fields: [teenId], references: [id])
 }
 
 model Vehicle {
@@ -312,6 +319,31 @@ model Admin {
   user        User     @relation(fields: [userId], references: [id])
 }
 
+model TempTrackingLink {
+  id          String   @id @default(uuid())
+  phoneNumber String
+  deviceId    String
+  deviceName  String
+  trackingLink String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RouteFeatures {
+  id                String   @id @default(uuid())
+  routeId           String   @unique
+  liveTracking      Boolean  @default(true)
+  videoSurveillance Boolean  @default(true)
+  childLocks        Boolean  @default(true)
+  speedMonitoring   Boolean  @default(true)
+  ac                Boolean  @default(true)
+  parentAlerts      Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  route             Route    @relation(fields: [routeId], references: [id])
+}
+
 enum UserRole {
   PARENT
   DRIVER
@@ -367,6 +399,8 @@ enum TripStatus {
 
 enum RideStatus {
   SCHEDULED
+  IN_PROGRESS
+  COMPLETED
   PICKUP_PENDING
   PICKED_UP
   DROP_PENDING
@@ -419,4 +453,11 @@ enum VerificationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum RequestType {
+  NEW_ROUTE
+  JOIN_EXISTING
+  TEMPORARY
+  RECURRING
 }

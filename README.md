@@ -2,6 +2,7 @@
 
 This is the core backend service that serves as the source of truth for the PiggyRide application.
 
+
 ## Project Structure
 
 ```
