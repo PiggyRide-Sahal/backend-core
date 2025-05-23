@@ -1,4 +1,6 @@
-import { PrismaClient, type Prisma, UserRole } from '@prisma/client';
+// file not needed since all services use own auth service but might be useful for future reference
+import { PrismaClient, Prisma } from '@prisma/client';
+import { UserRole } from '../shared/types/enums'; // Adjust path if needed
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
