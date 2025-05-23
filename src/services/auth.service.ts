@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
 
-function generateToken(user: Prisma.UserGetPayload<{}>) {
+/* function generateToken(user: Prisma.UserGetPayload<{}>) {
   return jwt.sign(
     { 
       userId: user.id,
@@ -50,3 +50,4 @@ export const authService = {
     };
   }
 };
+ */
