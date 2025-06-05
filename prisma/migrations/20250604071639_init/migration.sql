@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('PARENT', 'DRIVER', 'TEEN', 'ADMIN');
+CREATE TYPE "UserRole" AS ENUM ('PARENT', 'DRIVER', 'TEEN', 'ADMIN', 'RIDER');
 
 -- CreateEnum
 CREATE TYPE "LocationType" AS ENUM ('SCHOOL', 'BUSINESS', 'RESIDENTIAL', 'BUS_STOP', 'LANDMARK', 'OTHER');
@@ -17,7 +17,10 @@ CREATE TYPE "RouteFrequency" AS ENUM ('DAILY', 'WEEKLY', 'MONTHLY');
 CREATE TYPE "PricingType" AS ENUM ('FIXED', 'PER_KM', 'ZONE_BASED');
 
 -- CreateEnum
-CREATE TYPE "RideStatus" AS ENUM ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW');
+CREATE TYPE "TripStatus" AS ENUM ('SCHEDULED', 'DRIVER_ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "RideStatus" AS ENUM ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PICKUP_PENDING', 'PICKED_UP', 'DROP_PENDING', 'DROPPED_OFF', 'CANCELLED', 'NO_SHOW');
 
 -- CreateEnum
 CREATE TYPE "TransactionType" AS ENUM ('TOPUP', 'RIDE_PAYMENT', 'REFUND', 'REWARD');
@@ -39,6 +42,15 @@ CREATE TYPE "DocumentType" AS ENUM ('DRIVING_LICENSE', 'AADHAR_CARD', 'VEHICLE_R
 
 -- CreateEnum
 CREATE TYPE "VerificationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "RequestType" AS ENUM ('NEW_ROUTE', 'JOIN_EXISTING', 'TEMPORARY', 'RECURRING');
+
+-- CreateEnum
+CREATE TYPE "Direction" AS ENUM ('FROM_HOME', 'TO_HOME');
+
+-- CreateEnum
+CREATE TYPE "TripEventType" AS ENUM ('PICKUP', 'DROP');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -92,12 +104,13 @@ CREATE TABLE "Route" (
     "roundTripDiscount" DOUBLE PRECISION,
     "totalSeats" INTEGER NOT NULL,
     "availableSeats" INTEGER NOT NULL,
-    "farePerSeat" DOUBLE PRECISION NOT NULL,
     "status" "RouteStatus" NOT NULL DEFAULT 'PENDING_ADMIN',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "isListedPublicly" BOOLEAN NOT NULL DEFAULT false,
     "allowDriverBidding" BOOLEAN NOT NULL DEFAULT false,
     "autoApproveRequests" BOOLEAN NOT NULL DEFAULT false,
+    "minOccupancyRatio" DOUBLE PRECISION NOT NULL DEFAULT 0.4,
+    "maxOccupancyRatio" DOUBLE PRECISION NOT NULL DEFAULT 1.0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -108,9 +121,11 @@ CREATE TABLE "Route" (
 CREATE TABLE "RouteStop" (
     "id" TEXT NOT NULL,
     "routeId" TEXT NOT NULL,
+    "direction" "Direction" NOT NULL,
     "locationId" TEXT NOT NULL,
     "sequence" INTEGER NOT NULL,
-    "arrivalTime" TIMESTAMP(3),
+    "arrivalTime" TEXT NOT NULL,
+    "price" DOUBLE PRECISION,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -137,7 +152,7 @@ CREATE TABLE "Trip" (
     "routeId" TEXT NOT NULL,
     "driverId" TEXT NOT NULL,
     "date" TIMESTAMP(3) NOT NULL,
-    "status" "RideStatus" NOT NULL DEFAULT 'SCHEDULED',
+    "status" "TripStatus" NOT NULL DEFAULT 'SCHEDULED',
     "startTime" TIMESTAMP(3),
     "endTime" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -150,14 +165,14 @@ CREATE TABLE "Trip" (
 CREATE TABLE "Ride" (
     "id" TEXT NOT NULL,
     "tripId" TEXT NOT NULL,
-    "teenId" TEXT NOT NULL,
+    "riderId" TEXT NOT NULL,
     "pickupStopId" TEXT NOT NULL,
     "dropStopId" TEXT NOT NULL,
     "status" "RideStatus" NOT NULL,
-    "scheduledPickupTime" TIMESTAMP(3) NOT NULL,
-    "actualPickupTime" TIMESTAMP(3),
-    "scheduledDropTime" TIMESTAMP(3) NOT NULL,
-    "actualDropTime" TIMESTAMP(3),
+    "scheduledPickupTime" TEXT NOT NULL,
+    "actualPickupTime" TEXT,
+    "scheduledDropTime" TEXT NOT NULL,
+    "actualDropTime" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -214,10 +229,14 @@ CREATE TABLE "Teen" (
 CREATE TABLE "RideRequest" (
     "id" TEXT NOT NULL,
     "parentId" TEXT NOT NULL,
-    "teenId" TEXT NOT NULL,
+    "riderId" TEXT NOT NULL,
     "routeId" TEXT NOT NULL,
     "pickupStopId" TEXT NOT NULL,
     "dropStopId" TEXT NOT NULL,
+    "requestType" "RequestType" NOT NULL DEFAULT 'NEW_ROUTE',
+    "seatsRequired" INTEGER NOT NULL DEFAULT 1,
+    "expectedPickupTime" TEXT NOT NULL,
+    "expectedDropTime" TEXT NOT NULL,
     "status" "RouteStatus" NOT NULL DEFAULT 'PENDING_PARENT',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -343,6 +362,58 @@ CREATE TABLE "Admin" (
     CONSTRAINT "Admin_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "TempTrackingLink" (
+    "id" TEXT NOT NULL,
+    "phoneNumber" TEXT NOT NULL,
+    "deviceId" TEXT NOT NULL,
+    "deviceName" TEXT NOT NULL,
+    "trackingLink" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "TempTrackingLink_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RouteFeatures" (
+    "id" TEXT NOT NULL,
+    "routeId" TEXT NOT NULL,
+    "liveTracking" BOOLEAN NOT NULL DEFAULT true,
+    "videoSurveillance" BOOLEAN NOT NULL DEFAULT true,
+    "childLocks" BOOLEAN NOT NULL DEFAULT true,
+    "speedMonitoring" BOOLEAN NOT NULL DEFAULT true,
+    "ac" BOOLEAN NOT NULL DEFAULT true,
+    "parentAlerts" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RouteFeatures_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TripStop" (
+    "id" TEXT NOT NULL,
+    "tripId" TEXT NOT NULL,
+    "routeStopId" TEXT NOT NULL,
+    "sequence" INTEGER NOT NULL,
+    "actualArrivalTime" TEXT,
+
+    CONSTRAINT "TripStop_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TripEvent" (
+    "id" TEXT NOT NULL,
+    "tripStopId" TEXT NOT NULL,
+    "riderId" TEXT NOT NULL,
+    "eventType" "TripEventType" NOT NULL,
+    "actualTime" TEXT,
+
+    CONSTRAINT "TripEvent_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -385,29 +456,26 @@ CREATE UNIQUE INDEX "TeenRewards_teenId_key" ON "TeenRewards"("teenId");
 -- CreateIndex
 CREATE UNIQUE INDEX "Admin_userId_key" ON "Admin"("userId");
 
--- AddForeignKey
-ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE UNIQUE INDEX "RouteFeatures_routeId_key" ON "RouteFeatures"("routeId");
 
 -- AddForeignKey
 ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RouteDriver" ADD CONSTRAINT "RouteDriver_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RouteStop" ADD CONSTRAINT "RouteStop_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RouteDriver" ADD CONSTRAINT "RouteDriver_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Trip" ADD CONSTRAINT "Trip_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RouteDriver" ADD CONSTRAINT "RouteDriver_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Trip" ADD CONSTRAINT "Trip_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Ride" ADD CONSTRAINT "Ride_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Ride" ADD CONSTRAINT "Ride_teenId_fkey" FOREIGN KEY ("teenId") REFERENCES "Teen"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Trip" ADD CONSTRAINT "Trip_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Ride" ADD CONSTRAINT "Ride_pickupStopId_fkey" FOREIGN KEY ("pickupStopId") REFERENCES "RouteStop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -416,13 +484,16 @@ ALTER TABLE "Ride" ADD CONSTRAINT "Ride_pickupStopId_fkey" FOREIGN KEY ("pickupS
 ALTER TABLE "Ride" ADD CONSTRAINT "Ride_dropStopId_fkey" FOREIGN KEY ("dropStopId") REFERENCES "RouteStop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Ride" ADD CONSTRAINT "Ride_riderId_fkey" FOREIGN KEY ("riderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Ride" ADD CONSTRAINT "Ride_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Parent" ADD CONSTRAINT "Parent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Driver" ADD CONSTRAINT "Driver_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Teen" ADD CONSTRAINT "Teen_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Teen" ADD CONSTRAINT "Teen_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Parent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -431,19 +502,22 @@ ALTER TABLE "Teen" ADD CONSTRAINT "Teen_parentId_fkey" FOREIGN KEY ("parentId") 
 ALTER TABLE "Teen" ADD CONSTRAINT "Teen_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Parent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_teenId_fkey" FOREIGN KEY ("teenId") REFERENCES "Teen"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Teen" ADD CONSTRAINT "Teen_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_pickupStopId_fkey" FOREIGN KEY ("pickupStopId") REFERENCES "RouteStop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_dropStopId_fkey" FOREIGN KEY ("dropStopId") REFERENCES "RouteStop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Parent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RideRequest" ADD CONSTRAINT "RideRequest_riderId_fkey" FOREIGN KEY ("riderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Vehicle" ADD CONSTRAINT "Vehicle_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -458,16 +532,16 @@ ALTER TABLE "Document" ADD CONSTRAINT "Document_verificationId_fkey" FOREIGN KEY
 ALTER TABLE "Wallet" ADD CONSTRAINT "Wallet_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Parent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_walletId_fkey" FOREIGN KEY ("walletId") REFERENCES "Wallet"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_rideId_fkey" FOREIGN KEY ("rideId") REFERENCES "Ride"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TeenBuddy" ADD CONSTRAINT "TeenBuddy_teenId_fkey" FOREIGN KEY ("teenId") REFERENCES "Teen"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_walletId_fkey" FOREIGN KEY ("walletId") REFERENCES "Wallet"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TeenBuddy" ADD CONSTRAINT "TeenBuddy_buddyId_fkey" FOREIGN KEY ("buddyId") REFERENCES "Teen"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TeenBuddy" ADD CONSTRAINT "TeenBuddy_teenId_fkey" FOREIGN KEY ("teenId") REFERENCES "Teen"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TeenRewards" ADD CONSTRAINT "TeenRewards_teenId_fkey" FOREIGN KEY ("teenId") REFERENCES "Teen"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -477,3 +551,18 @@ ALTER TABLE "Achievement" ADD CONSTRAINT "Achievement_rewardId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "Admin" ADD CONSTRAINT "Admin_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RouteFeatures" ADD CONSTRAINT "RouteFeatures_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TripStop" ADD CONSTRAINT "TripStop_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TripStop" ADD CONSTRAINT "TripStop_routeStopId_fkey" FOREIGN KEY ("routeStopId") REFERENCES "RouteStop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TripEvent" ADD CONSTRAINT "TripEvent_tripStopId_fkey" FOREIGN KEY ("tripStopId") REFERENCES "TripStop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TripEvent" ADD CONSTRAINT "TripEvent_riderId_fkey" FOREIGN KEY ("riderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

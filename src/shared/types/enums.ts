@@ -54,7 +54,7 @@ export enum RideStatus {
   DROPPED_OFF = 'DROPPED_OFF',
   CANCELLED = 'CANCELLED',
   NO_SHOW = 'NO_SHOW'
-}
+} 
 
 export enum RouteType {
   ADMIN_CREATED = 'ADMIN_CREATED',

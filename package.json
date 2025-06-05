@@ -13,16 +13,21 @@
     "@prisma/client": "^6.8.2",
     "bcryptjs": "^3.0.2",
     "jsonwebtoken": "^9.0.2",
-    "prisma": "^6.8.2"
+    "prisma": "^6.8.2",
+    "zod": "^3.25.49"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^18.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
   },
   "files": [
     "dist",
     "prisma"
-  ]
+  ],
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  }
 }

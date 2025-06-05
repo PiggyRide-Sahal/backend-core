@@ -1,23 +1,31 @@
 import { PrismaClient, UserRole } from '@prisma/client'
 const prisma = new PrismaClient()
+import bcrypt from 'bcrypt'
+
 
 async function main() {
+  //await prisma.wallet.deleteMany()
+  //await prisma.admin.deleteMany()
+  //await prisma.parent.deleteMany()
+  //await prisma.user.deleteMany()
   // Create Admin User
+  const hashedPassword = await bcrypt.hash('admin123', 10);
   const adminUser = await prisma.user.create({
     data: {
-      email: 'admin@piggyride.com',
-      password: 'admin123', // In real app, this should be hashed
+      email: 'admin@sahalcabs.com',
+      password: hashedPassword, // In real app, this should be hashed
       name: 'Admin User',
-      phone: '9876543210',
+      phone: '9945062063',
       role: UserRole.ADMIN,
       admin: {
         create: {} // Creates associated admin profile
       }
     }
   })
+  console.log('Admin user created:', adminUser);
 
   // Create Test Parent
-  const parentUser = await prisma.user.create({
+/*   const parentUser = await prisma.user.create({
     data: {
       email: 'parent@test.com',
       password: 'parent123',
@@ -35,8 +43,9 @@ async function main() {
       }
     }
   })
-
+ */
   // Create Test Driver
+  /* 
   const driverUser = await prisma.user.create({
     data: {
       email: 'driver@test.com',
@@ -62,9 +71,9 @@ async function main() {
       }
     }
   })
-
+ */
   // Create Test Locations
-  const school = await prisma.location.create({
+ /*  const school = await prisma.location.create({
     data: {
       name: 'Test School',
       address: '123 School St',
@@ -80,10 +89,10 @@ async function main() {
         friday: '8:00-16:00'
       }
     }
-  })
+  }) */
 
   // Create Test Route
-  const route = await prisma.route.create({
+/*   const route = await prisma.route.create({
     data: {
       name: 'School Route 1',
       description: 'Morning pickup route',
@@ -106,9 +115,9 @@ async function main() {
         ]
       }
     }
-  })
+  }) */
 
-  console.log({ adminUser, parentUser, driverUser, school, route })
+//  console.log({ adminUser, parentUser, driverUser, school, route })
 }
 
 main()
@@ -117,5 +126,6 @@ main()
     process.exit(1)
   })
   .finally(async () => {
+    
     await prisma.$disconnect()
   })

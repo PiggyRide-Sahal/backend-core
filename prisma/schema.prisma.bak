@@ -22,9 +22,6 @@ model User {
   driver    Driver?
   parent    Parent?
   teen      Teen?
-  rides     Ride[] @relation("UserRides")
-  rideRequests RideRequest[] @relation("UserRideRequests")
-  tripEvents TripEvent[] @relation("UserTripEvents")
 }
 
 model Location {
@@ -61,6 +58,7 @@ model Route {
   roundTripDiscount   Float?
   totalSeats          Int
   availableSeats      Int
+  farePerSeat         Float
   status              RouteStatus    @default(PENDING_ADMIN)
   isActive            Boolean        @default(true)
   isListedPublicly    Boolean        @default(false)
@@ -78,22 +76,19 @@ model Route {
 }
 
 model RouteStop {
-  id          String   @id @default(uuid())
-  routeId     String
-  direction   Direction
-  locationId  String
-  sequence    Int
-  arrivalTime String   // Time only, e.g., "08:00"
-  price       Float?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  ridesAsPickup Ride[] @relation("PickupStop")
-  ridesAsDrop   Ride[] @relation("DropStop")
-  requestsAsPickup RideRequest[] @relation("PickupStop")
-  requestsAsDrop   RideRequest[] @relation("DropStop")
-  location    Location @relation(fields: [locationId], references: [id])
-  route       Route    @relation(fields: [routeId], references: [id])
-  tripStops   TripStop[] @relation("RouteStopTripStops")
+  id             String        @id @default(uuid())
+  routeId        String
+  locationId     String
+  sequence       Int
+  arrivalTime    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  dropRides      Ride[]        @relation("DropStop")
+  pickupRides    Ride[]        @relation("PickupStop")
+  dropRequests   RideRequest[] @relation("DropStop")
+  pickupRequests RideRequest[] @relation("PickupStop")
+  location       Location      @relation(fields: [locationId], references: [id])
+  route          Route         @relation(fields: [routeId], references: [id])
 }
 
 model RouteDriver {
@@ -122,25 +117,24 @@ model Trip {
   rides     Ride[]
   driver    Driver     @relation(fields: [driverId], references: [id])
   route     Route      @relation(fields: [routeId], references: [id])
-  tripStops TripStop[] @relation("TripTripStops")
 }
 
 model Ride {
   id                  String        @id @default(uuid())
   tripId              String
-  riderId             String
+  teenId              String
   pickupStopId        String
   dropStopId          String
   status              RideStatus
-  scheduledPickupTime String        // Time only, e.g., "08:00"
-  actualPickupTime    String?       // Time only, e.g., "08:05"
-  scheduledDropTime   String        // Time only, e.g., "09:00"
-  actualDropTime      String?       // Time only, e.g., "09:05"
+  scheduledPickupTime DateTime
+  actualPickupTime    DateTime?
+  scheduledDropTime   DateTime
+  actualDropTime      DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
-  pickupStop          RouteStop     @relation("PickupStop", fields: [pickupStopId], references: [id])
   dropStop            RouteStop     @relation("DropStop", fields: [dropStopId], references: [id])
-  rider               User          @relation("UserRides", fields: [riderId], references: [id])
+  pickupStop          RouteStop     @relation("PickupStop", fields: [pickupStopId], references: [id])
+  teen                Teen          @relation(fields: [teenId], references: [id])
   trip                Trip          @relation(fields: [tripId], references: [id])
   transactions        Transaction[]
 }
@@ -189,6 +183,8 @@ model Teen {
   medicalInfo      String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
+  rides            Ride[]
+  rideRequests     RideRequest[]
   parent           Parent        @relation(fields: [parentId], references: [id])
   school           Location?     @relation(fields: [schoolId], references: [id])
   user             User          @relation(fields: [userId], references: [id])
@@ -199,23 +195,23 @@ model Teen {
 
 model RideRequest {
   id                String      @id @default(uuid())
-  parentId          String
-  riderId           String
-  routeId           String
-  pickupStopId      String
-  dropStopId        String
-  requestType       RequestType  @default(NEW_ROUTE)
-  seatsRequired     Int         @default(1)
-  expectedPickupTime String      // Time only, e.g., "08:00"
-  expectedDropTime   String      // Time only, e.g., "09:00"
-  status            RouteStatus @default(PENDING_PARENT)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  pickupStop        RouteStop   @relation("PickupStop", fields: [pickupStopId], references: [id])
-  dropStop          RouteStop   @relation("DropStop", fields: [dropStopId], references: [id])
-  parent            Parent      @relation(fields: [parentId], references: [id])
-  route             Route       @relation(fields: [routeId], references: [id])
-  rider             User        @relation("UserRideRequests", fields: [riderId], references: [id])
+  parentId         String
+  teenId           String
+  routeId          String
+  pickupStopId     String
+  dropStopId       String
+  requestType      RequestType  @default(NEW_ROUTE)
+  seatsRequired    Int         @default(1)
+  expectedPickupTime DateTime
+  expectedDropTime   DateTime
+  status           RouteStatus @default(PENDING_PARENT)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  dropStop         RouteStop   @relation("DropStop", fields: [dropStopId], references: [id])
+  parent           Parent      @relation(fields: [parentId], references: [id])
+  pickupStop       RouteStop   @relation("PickupStop", fields: [pickupStopId], references: [id])
+  route            Route       @relation(fields: [routeId], references: [id])
+  teen             Teen        @relation(fields: [teenId], references: [id])
 }
 
 model Vehicle {
@@ -348,33 +344,11 @@ model RouteFeatures {
   route             Route    @relation(fields: [routeId], references: [id])
 }
 
-model TripStop {
-  id           String   @id @default(uuid())
-  tripId       String
-  routeStopId  String
-  sequence     Int
-  actualArrivalTime String?
-  trip         Trip     @relation("TripTripStops", fields: [tripId], references: [id])
-  routeStop    RouteStop @relation("RouteStopTripStops", fields: [routeStopId], references: [id])
-  events       TripEvent[]
-}
-
-model TripEvent {
-  id           String   @id @default(uuid())
-  tripStopId   String
-  riderId      String
-  eventType    TripEventType
-  actualTime   String?
-  tripStop     TripStop @relation(fields: [tripStopId], references: [id])
-  rider        User     @relation("UserTripEvents", fields: [riderId], references: [id])
-}
-
 enum UserRole {
   PARENT
   DRIVER
   TEEN
   ADMIN
-  RIDER
 }
 
 enum LocationType {
@@ -486,14 +460,4 @@ enum RequestType {
   JOIN_EXISTING
   TEMPORARY
   RECURRING
-}
-
-enum Direction {
-  FROM_HOME
-  TO_HOME
-}
-
-enum TripEventType {
-  PICKUP
-  DROP
 }
