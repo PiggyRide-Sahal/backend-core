@@ -143,6 +143,7 @@ model Ride {
   rider               User          @relation("UserRides", fields: [riderId], references: [id])
   trip                Trip          @relation(fields: [tripId], references: [id])
   transactions        Transaction[]
+  direction           Direction
 }
 
 model Parent {
@@ -201,20 +202,27 @@ model RideRequest {
   id                String      @id @default(uuid())
   parentId          String
   riderId           String
-  routeId           String
-  pickupStopId      String
-  dropStopId        String
+  routeId           String?
+  // Deprecated fields (kept for backward compatibility, to be removed after migration)
+  pickupStopId      String?     // deprecated, use stops array instead
+  dropStopId        String?     // deprecated, use stops array instead
+  expectedPickupTime String?    // deprecated, use stops array instead
+  expectedDropTime   String?    // deprecated, use stops array instead
+
+  // New field for direction-based stops (see README for structure)
+  stops             Json?       // Array of stops, see 2024 design update
+
   requestType       RequestType  @default(NEW_ROUTE)
   seatsRequired     Int         @default(1)
-  expectedPickupTime String      // Time only, e.g., "08:00"
-  expectedDropTime   String      // Time only, e.g., "09:00"
   status            RouteStatus @default(PENDING_PARENT)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
-  pickupStop        RouteStop   @relation("PickupStop", fields: [pickupStopId], references: [id])
-  dropStop          RouteStop   @relation("DropStop", fields: [dropStopId], references: [id])
+
+  // Relations
+  pickupStop        RouteStop?   @relation("PickupStop", fields: [pickupStopId], references: [id])
+  dropStop          RouteStop?   @relation("DropStop", fields: [dropStopId], references: [id])
   parent            Parent      @relation(fields: [parentId], references: [id])
-  route             Route       @relation(fields: [routeId], references: [id])
+  route             Route?      @relation(fields: [routeId], references: [id])
   rider             User        @relation("UserRideRequests", fields: [riderId], references: [id])
 }
 
@@ -326,8 +334,8 @@ model Admin {
 model TempTrackingLink {
   id          String   @id @default(uuid())
   phoneNumber String
-  deviceId    String
-  deviceName  String
+  deviceId    String  // VehicleNo
+  deviceName  String  // Vendor Name eg : CAUTIO
   trackingLink String
   expiresAt   DateTime
   createdAt   DateTime @default(now())
